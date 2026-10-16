@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Đăng Ký Giảng Viên Hướng Dẫn Thực Tập</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- SheetJS để xuất Excel -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+  <!-- ===== HEADER ===== -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="header-logo">🎓</div>
+      <div class="header-text">
+        <h1 class="header-title">Đăng Ký Giảng Viên Hướng Dẫn Thực Tập</h1>
+        <p class="header-sub">Hệ thống đăng ký giảng viên hướng dẫn thực tập tốt nghiệp</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn-admin-toggle" id="btn-admin-toggle" onclick="App.toggleAdminLogin()">
+          ⚙️ Quản trị
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== MAIN ===== -->
+  <main class="main-container" id="main-container">
+
+    <!-- ══════════════════════════════════════════
+         VIEW: ĐĂNG KÝ (mặc định - Sinh viên)
+    ══════════════════════════════════════════ -->
+    <div id="view-register" class="view active">
+      <div class="page-header">
+        <div>
+          <h2 class="page-title">📋 Phiếu Đăng Ký Giảng Viên Hướng Dẫn</h2>
+          <p class="page-desc">Điền đầy đủ thông tin bên dưới để đăng ký giảng viên hướng dẫn thực tập.</p>
+        </div>
+      </div>
+
+      <div class="register-layout">
+        <!-- Form đăng ký -->
+        <div class="register-form-card">
+          <form id="register-form" onsubmit="return false;">
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label required">Mã số sinh viên</label>
+                <input id="f-msv" type="text" class="input" placeholder="VD: 21110001"
+                  maxlength="20" autocomplete="off" />
+              </div>
+              <div class="form-group">
+                <label class="form-label required">Họ và tên sinh viên</label>
+                <input id="f-hoten" type="text" class="input" placeholder="VD: Nguyễn Văn A"
+                  maxlength="100" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label required">Ngành học</label>
+                <select id="f-nganh" class="input" onchange="App.onNganhChange()">
+                  <option value="">-- Chọn ngành học --</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label required">Lớp</label>
+                <input id="f-lop" type="text" class="input" placeholder="VD: 21CNTT1"
+                  maxlength="30" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label required">Giảng viên hướng dẫn</label>
+              <div id="gv-loading" class="gv-placeholder">
+                <span class="gv-hint">← Vui lòng chọn ngành học trước</span>
+              </div>
+              <select id="f-gv" class="input hidden" onchange="App.onGvChange()">
+                <option value="">-- Chọn giảng viên --</option>
+              </select>
+              <div id="gv-info" class="gv-info-box hidden"></div>
+            </div>
+
+            <div class="form-actions-center">
+              <button type="button" class="btn btn-primary btn-lg btn-register"
+                onclick="App.submitRegister()">
+                📝 Đăng Ký Ngay
+              </button>
+            </div>
+
+          </form>
+        </div>
+
+        <!-- Hướng dẫn -->
+        <div class="register-guide">
+          <div class="guide-card">
+            <h3 class="guide-title">📌 Hướng dẫn đăng ký</h3>
+            <ol class="guide-list">
+              <li>Nhập <strong>Mã số sinh viên</strong> chính xác theo thẻ sinh viên.</li>
+              <li>Chọn <strong>Ngành học</strong> — danh sách giảng viên sẽ tự động cập nhật.</li>
+              <li>Chọn <strong>Giảng viên hướng dẫn</strong> từ danh sách của ngành.</li>
+              <li>Kiểm tra lại thông tin và nhấn <strong>Đăng Ký Ngay</strong>.</li>
+            </ol>
+            <div class="guide-note">
+              <strong>⚠️ Lưu ý:</strong> Mỗi sinh viên chỉ được đăng ký <strong>một lần</strong>.
+              Vui lòng kiểm tra kỹ trước khi gửi.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         VIEW: ADMIN LOGIN
+    ══════════════════════════════════════════ -->
+    <div id="view-admin-login" class="view hidden">
+      <div class="login-wrap">
+        <div class="login-card">
+          <div class="login-icon">🔐</div>
+          <h2 class="login-title">Đăng nhập Quản trị</h2>
+          <p class="login-desc">Nhập mật khẩu để truy cập trang quản trị</p>
+          <div class="form-group">
+            <label class="form-label">Mật khẩu</label>
+            <input id="admin-pwd" type="password" class="input"
+              placeholder="Nhập mật khẩu admin"
+              onkeydown="if(event.key==='Enter') App.doAdminLogin()" />
+          </div>
+          <div class="form-actions-center" style="margin-top:1rem;">
+            <button class="btn btn-secondary" onclick="App.showView('register')">Hủy</button>
+            <button class="btn btn-primary" onclick="App.doAdminLogin()">🔑 Đăng nhập</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         VIEW: ADMIN DASHBOARD
+    ══════════════════════════════════════════ -->
+    <div id="view-admin" class="view hidden">
+
+      <!-- Admin top bar -->
+      <div class="admin-topbar">
+        <div class="admin-tabs">
+          <button class="admin-tab active" data-tab="nganh" onclick="App.switchAdminTab('nganh')">
+            🎓 Ngành học
+          </button>
+          <button class="admin-tab" data-tab="giangvien" onclick="App.switchAdminTab('giangvien')">
+            👨‍🏫 Giảng viên
+          </button>
+          <button class="admin-tab" data-tab="danhsach" onclick="App.switchAdminTab('danhsach')">
+            📊 DS Đăng ký
+          </button>
+        </div>
+        <div class="admin-topbar-right">
+          <button class="btn btn-secondary btn-sm" onclick="App.logout()">🚪 Đăng xuất</button>
+        </div>
+      </div>
+
+      <!-- Tab: Ngành học -->
+      <div id="tab-nganh" class="admin-tab-content active">
+        <div class="section-header">
+          <div>
+            <h3 class="section-title">🎓 Quản lý Ngành học</h3>
+            <p class="section-desc">Tạo và quản lý danh mục ngành học trong hệ thống.</p>
+          </div>
+          <button class="btn btn-primary" onclick="App.openAddNganh()">+ Thêm ngành</button>
+        </div>
+        <div id="nganh-list" class="data-container">
+          <div class="loading"><div class="spinner"></div> Đang tải...</div>
+        </div>
+      </div>
+
+      <!-- Tab: Giảng viên -->
+      <div id="tab-giangvien" class="admin-tab-content hidden">
+        <div class="section-header">
+          <div>
+            <h3 class="section-title">👨‍🏫 Quản lý Giảng viên</h3>
+            <p class="section-desc">Thêm giảng viên và phân công theo ngành học.</p>
+          </div>
+          <button class="btn btn-primary" onclick="App.openAddGv()">+ Thêm giảng viên</button>
+        </div>
+        <!-- Filter ngành -->
+        <div class="filter-bar">
+          <label class="form-label" style="white-space:nowrap;">Lọc theo ngành:</label>
+          <select id="filter-nganh-gv" class="input input-sm" onchange="App.renderGvList()">
+            <option value="">Tất cả ngành</option>
+          </select>
+        </div>
+        <div id="gv-list" class="data-container">
+          <div class="loading"><div class="spinner"></div> Đang tải...</div>
+        </div>
+      </div>
+
+      <!-- Tab: Danh sách đăng ký -->
+      <div id="tab-danhsach" class="admin-tab-content hidden">
+        <div class="section-header">
+          <div>
+            <h3 class="section-title">📊 Danh sách Sinh viên đăng ký</h3>
+            <p class="section-desc">Xem và xuất danh sách sinh viên đã đăng ký giảng viên hướng dẫn.</p>
+          </div>
+          <button class="btn btn-success" onclick="App.exportExcel()">
+            📥 Xuất Excel
+          </button>
+        </div>
+        <!-- Filter -->
+        <div class="filter-bar">
+          <label class="form-label" style="white-space:nowrap;">Lọc theo ngành:</label>
+          <select id="filter-nganh-ds" class="input input-sm" onchange="App.renderDanhSach()">
+            <option value="">Tất cả ngành</option>
+          </select>
+          <input id="filter-search" type="text" class="input input-sm"
+            placeholder="🔍 Tìm MSSV, họ tên..."
+            oninput="App.renderDanhSach()" style="max-width:220px;" />
+        </div>
+        <div id="ds-list" class="data-container">
+          <div class="loading"><div class="spinner"></div> Đang tải...</div>
+        </div>
+      </div>
+
+    </div><!-- /view-admin -->
+
+  </main><!-- /main-container -->
+
+  <!-- ===== MODAL ===== -->
+  <div class="modal-backdrop hidden" id="modal-backdrop">
+    <div class="modal" id="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-title"></h3>
+        <button class="modal-close" onclick="App.closeModal()">✕</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- ===== SUCCESS OVERLAY ===== -->
+  <div class="success-overlay hidden" id="success-overlay">
+    <div class="success-box">
+      <div class="success-icon">🎉</div>
+      <h2 class="success-title">Đăng ký thành công!</h2>
+      <p class="success-msg" id="success-msg"></p>
+      <button class="btn btn-primary btn-lg" onclick="App.closeSuccess()">
+        ✓ Đóng
+      </button>
+    </div>
+  </div>
+
+  <!-- ===== TOAST ===== -->
+  <div class="toast hidden" id="toast"></div>
+
+  <script src="config.js"></script>
+  <script src="supabase-client.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
