@@ -207,11 +207,12 @@ const App = (() => {
     gvLoad.classList.remove('hidden');
 
     try {
-      // Lấy GV theo ngành + đếm SV đã đăng ký
-      const [gvs, svCount] = await Promise.all([
-        DB.getGiangVien(nganhId),
+      // Lấy GV theo ngành (lọc theo nganh_ids) + đếm SV đã đăng ký
+      const [allGvs, svCount] = await Promise.all([
+        DB.getGiangVien(),
         DB.countSvByGv(),
       ]);
+      const gvs = allGvs.filter(gv => (gv.nganh_ids || []).includes(nganhId));
       state.svCountByGv = svCount;
 
       gvLoad.classList.add('hidden');
@@ -322,15 +323,18 @@ const App = (() => {
       return;
     }
 
-    // Đếm GV theo ngành
+    // Đếm GV theo ngành — GV có thể thuộc nhiều ngành (nganh_ids)
     const gvCountByNganh = {};
     state.gvList.forEach(gv => {
-      gvCountByNganh[gv.nganh_id] = (gvCountByNganh[gv.nganh_id] || 0) + 1;
+      const ids = gv.nganh_ids || [];
+      ids.forEach(nid => {
+        gvCountByNganh[nid] = (gvCountByNganh[nid] || 0) + 1;
+      });
     });
-    // Đếm SV đăng ký theo ngành
+    // Đếm SV đăng ký theo ngành — dùng nganh_id trực tiếp (không qua join)
     const svCountByNganh = {};
     state.dangKyList.forEach(dk => {
-      const nid = dk.nganh_hoc?.id || dk.nganh_id;
+      const nid = dk.nganh_id;
       if (nid) svCountByNganh[nid] = (svCountByNganh[nid] || 0) + 1;
     });
 
@@ -444,7 +448,7 @@ const App = (() => {
 
     const filterNganh = parseInt(document.getElementById('filter-nganh-gv')?.value) || 0;
     const filtered = filterNganh
-      ? state.gvList.filter(gv => gv.nganh_id === filterNganh)
+      ? state.gvList.filter(gv => (gv.nganh_ids || []).includes(filterNganh))
       : state.gvList;
 
     if (filtered.length === 0) {
@@ -462,11 +466,18 @@ const App = (() => {
       const toiDa    = gv.so_luong_toi_da || 0;
       const conLai   = toiDa > 0 ? toiDa - daDangKy : '—';
       const hetCho   = toiDa > 0 && daDangKy >= toiDa;
+
+      // Hiển thị nhiều ngành
+      const nganhBadges = (gv.nganh_ids || []).map(nid => {
+        const n = state.nganhList.find(x => x.id === nid);
+        return n ? `<span class="badge badge-primary" style="font-size:0.7rem;">${escHtml(n.ten_nganh)}</span>` : '';
+      }).join(' ');
+
       return `
         <tr>
           <td class="td-stt">${idx + 1}</td>
           <td><strong>${escHtml(gv.ho_ten)}</strong>${gv.hoc_vi ? `<br><span style="font-size:0.78rem;color:var(--text-muted)">${escHtml(gv.hoc_vi)}</span>` : ''}</td>
-          <td>${escHtml(gv.nganh_hoc?.ten_nganh || '—')}</td>
+          <td>${nganhBadges || '<span style="color:var(--text-muted)">—</span>'}</td>
           <td style="text-align:center;">${toiDa > 0 ? toiDa : '—'}</td>
           <td style="text-align:center;">${daDangKy}</td>
           <td style="text-align:center;">
@@ -505,9 +516,14 @@ const App = (() => {
   }
 
   function gvFormHtml(gv = {}) {
-    const nganhOpts = state.nganhList.map(n =>
-      `<option value="${n.id}" ${n.id == gv.nganh_id ? 'selected' : ''}>${escHtml(n.ten_nganh)}</option>`
-    ).join('');
+    const selectedIds = gv.nganh_ids || [];
+    const nganhCheckboxes = state.nganhList.map(n => `
+      <div class="nganh-cb-item">
+        <input type="checkbox" id="m-gv-nganh-${n.id}" name="m-gv-nganh"
+          value="${n.id}" ${selectedIds.includes(n.id) ? 'checked' : ''} />
+        <label for="m-gv-nganh-${n.id}">${escHtml(n.ten_nganh)}</label>
+      </div>`).join('');
+
     return `
       <div class="form-row">
         <div class="form-group">
@@ -521,25 +537,22 @@ const App = (() => {
             value="${escHtml(gv.hoc_vi||'')}" />
         </div>
       </div>
+      <div class="form-group">
+        <label class="form-label required">Ngành phụ trách <span style="font-weight:400;color:var(--text-muted)">(chọn một hoặc nhiều)</span></label>
+        <div class="nganh-cb-group">${nganhCheckboxes || '<span style="color:var(--text-muted);font-size:0.85rem;">Chưa có ngành nào. Thêm ngành trước.</span>'}</div>
+      </div>
       <div class="form-row">
-        <div class="form-group">
-          <label class="form-label required">Ngành phụ trách</label>
-          <select id="m-gv-nganh" class="input">
-            <option value="">-- Chọn ngành --</option>
-            ${nganhOpts}
-          </select>
-        </div>
         <div class="form-group">
           <label class="form-label">Số SV tối đa</label>
           <input id="m-gv-soluong" class="input" type="number" min="0"
             placeholder="0 = không giới hạn"
             value="${gv.so_luong_toi_da || 0}" />
         </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Email</label>
-        <input id="m-gv-email" class="input" type="email" placeholder="gv@email.com"
-          value="${escHtml(gv.email||'')}" />
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input id="m-gv-email" class="input" type="email" placeholder="gv@email.com"
+            value="${escHtml(gv.email||'')}" />
+        </div>
       </div>`;
   }
 
@@ -551,18 +564,25 @@ const App = (() => {
       </div>`);
   }
 
+  function getSelectedNganhIds() {
+    return [...document.querySelectorAll('input[name="m-gv-nganh"]:checked')]
+      .map(cb => parseInt(cb.value));
+  }
+
   async function submitAddGv() {
     const hoTen   = document.getElementById('m-gv-hoten').value.trim();
     const hocVi   = document.getElementById('m-gv-hocvi').value.trim();
-    const nganhId = parseInt(document.getElementById('m-gv-nganh').value);
+    const nganhIds = getSelectedNganhIds();
     const soLuong = parseInt(document.getElementById('m-gv-soluong').value) || 0;
     const email   = document.getElementById('m-gv-email').value.trim();
-    if (!hoTen)   { showToast('Vui lòng nhập họ tên giảng viên!', 'error'); return; }
-    if (!nganhId) { showToast('Vui lòng chọn ngành!', 'error'); return; }
+    if (!hoTen)          { showToast('Vui lòng nhập họ tên giảng viên!', 'error'); return; }
+    if (!nganhIds.length){ showToast('Vui lòng chọn ít nhất một ngành!', 'error'); return; }
     try {
-      const gv = await DB.addGiangVien({ ho_ten: hoTen, hoc_vi: hocVi, nganh_id: nganhId, so_luong_toi_da: soLuong, email });
-      // Gắn thêm nganh_hoc cho cache
-      gv.nganh_hoc = state.nganhList.find(n => n.id === nganhId) || {};
+      const gv = await DB.addGiangVien({
+        ho_ten: hoTen, hoc_vi: hocVi,
+        nganh_ids: nganhIds,
+        so_luong_toi_da: soLuong, email,
+      });
       state.gvList.push(gv);
       state.gvList.sort((a,b) => a.ho_ten.localeCompare(b.ho_ten));
       closeModal();
@@ -585,14 +605,17 @@ const App = (() => {
   async function submitEditGv(id) {
     const hoTen   = document.getElementById('m-gv-hoten').value.trim();
     const hocVi   = document.getElementById('m-gv-hocvi').value.trim();
-    const nganhId = parseInt(document.getElementById('m-gv-nganh').value);
+    const nganhIds = getSelectedNganhIds();
     const soLuong = parseInt(document.getElementById('m-gv-soluong').value) || 0;
     const email   = document.getElementById('m-gv-email').value.trim();
-    if (!hoTen)   { showToast('Vui lòng nhập họ tên!', 'error'); return; }
-    if (!nganhId) { showToast('Vui lòng chọn ngành!', 'error'); return; }
+    if (!hoTen)          { showToast('Vui lòng nhập họ tên!', 'error'); return; }
+    if (!nganhIds.length){ showToast('Vui lòng chọn ít nhất một ngành!', 'error'); return; }
     try {
-      const updated = await DB.updateGiangVien(id, { ho_ten: hoTen, hoc_vi: hocVi, nganh_id: nganhId, so_luong_toi_da: soLuong, email });
-      updated.nganh_hoc = state.nganhList.find(n => n.id === nganhId) || {};
+      const updated = await DB.updateGiangVien(id, {
+        ho_ten: hoTen, hoc_vi: hocVi,
+        nganh_ids: nganhIds,
+        so_luong_toi_da: soLuong, email,
+      });
       const idx = state.gvList.findIndex(x => x.id === id);
       if (idx !== -1) state.gvList[idx] = updated;
       closeModal();
@@ -686,12 +709,39 @@ const App = (() => {
     try {
       await DB.deleteDangKy(id);
       state.dangKyList = state.dangKyList.filter(x => x.id !== id);
-      // Cập nhật lại svCountByGv
       state.svCountByGv = await DB.countSvByGv();
       renderDanhSach();
       renderAdminNganhList();
       renderGvList();
       showToast('Đã xóa đăng ký!', 'success');
+    } catch (err) { showToast('Lỗi: ' + err.message, 'error'); }
+  }
+
+  async function deleteAllDangKy() {
+    const filterNganh = parseInt(document.getElementById('filter-nganh-ds')?.value) || 0;
+    const nganhName = filterNganh
+      ? state.nganhList.find(n => n.id === filterNganh)?.ten_nganh
+      : null;
+    const scope = nganhName ? `ngành "${nganhName}"` : 'toàn bộ hệ thống';
+    const count = filterNganh
+      ? state.dangKyList.filter(dk => dk.nganh_id == filterNganh).length
+      : state.dangKyList.length;
+
+    if (count === 0) { showToast('Không có dữ liệu để xóa!', 'warning'); return; }
+    if (!confirm(`⚠️ Xóa TOÀN BỘ ${count} đăng ký của ${scope}?\n\nThao tác này KHÔNG thể hoàn tác!`)) return;
+
+    try {
+      await DB.deleteAllDangKy(filterNganh || null);
+      if (filterNganh) {
+        state.dangKyList = state.dangKyList.filter(dk => dk.nganh_id != filterNganh);
+      } else {
+        state.dangKyList = [];
+      }
+      state.svCountByGv = await DB.countSvByGv();
+      renderDanhSach();
+      renderAdminNganhList();
+      renderGvList();
+      showToast(`Đã xóa ${count} đăng ký!`, 'success');
     } catch (err) { showToast('Lỗi: ' + err.message, 'error'); }
   }
 
@@ -767,6 +817,6 @@ const App = (() => {
     // Admin GV
     openAddGv, submitAddGv, openEditGv, submitEditGv, deleteGv,
     // Admin DS
-    renderGvList, renderDanhSach, deleteDangKy, exportExcel,
+    renderGvList, renderDanhSach, deleteDangKy, deleteAllDangKy, exportExcel,
   };
 })();

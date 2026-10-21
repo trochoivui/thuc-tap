@@ -570,6 +570,54 @@ select.input {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* ===== CHECKBOX NGÀNH TRONG FORM GV ===== */
+.nganh-cb-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.6rem;
+  background: #f8fafc;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  max-height: 180px;
+  overflow-y: auto;
+}
+.nganh-cb-item {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.nganh-cb-item input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0; height: 0;
+}
+.nganh-cb-item label {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.75rem;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: white;
+  cursor: pointer;
+  transition: all 0.18s;
+  user-select: none;
+}
+.nganh-cb-item label:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-light);
+}
+.nganh-cb-item input:checked + label {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+  font-weight: 600;
+}
+
 /* ===== STT column ===== */
 .td-stt { width: 42px; text-align: center; color: var(--text-muted); font-size: 0.82rem; }
 

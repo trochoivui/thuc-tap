@@ -3,8 +3,11 @@
  *
  * Schema:
  *   nganh_hoc  : id, ten_nganh, mo_ta, created_at
- *   giang_vien : id, ho_ten, hoc_vi, email, so_luong_toi_da, nganh_id (FK), created_at
+ *   giang_vien : id, ho_ten, hoc_vi, email, so_luong_toi_da, nganh_ids (int4[]), created_at
  *   dang_ky    : id, msv, ho_ten, lop, nganh_id (FK), giang_vien_id (FK), created_at
+ *
+ * Lưu ý: nganh_ids là mảng integer (PostgreSQL int4[]) cho phép GV thuộc nhiều ngành.
+ * SQL thêm cột: ALTER TABLE giang_vien ADD COLUMN IF NOT EXISTS nganh_ids int4[] DEFAULT '{}';
  */
 
 const DB = (() => {
@@ -72,14 +75,9 @@ const DB = (() => {
   }
 
   // ── GIẢNG VIÊN ───────────────────────────────────────────────────────────
-  async function getGiangVien(nganh_id = null) {
-    const opts = {
-      select: '*, nganh_hoc(ten_nganh)',
-      order:  'ho_ten',
-      asc:    true,
-    };
-    if (nganh_id) opts.eq = { nganh_id };
-    return fetchAll('giang_vien', opts);
+  async function getGiangVien() {
+    // Lấy tất cả GV, không filter ngành — app.js tự filter theo nganh_ids
+    return fetchAll('giang_vien', { order: 'ho_ten', asc: true });
   }
   async function addGiangVien(payload) {
     return insertOne('giang_vien', payload);
@@ -139,10 +137,22 @@ const DB = (() => {
     return deleteOne('dang_ky', id);
   }
 
+  async function deleteAllDangKy(nganh_id = null) {
+    let q = _client.from('dang_ky').delete();
+    if (nganh_id) {
+      q = q.eq('nganh_id', nganh_id);
+    } else {
+      // Xóa toàn bộ — Supabase yêu cầu điều kiện, dùng neq với giá trị không tồn tại
+      q = q.gte('id', 0);
+    }
+    const { error } = await q;
+    if (error) throw error;
+  }
+
   return {
     init, getClient, isReady, loadConfig,
     getNganh, addNganh, updateNganh, deleteNganh,
     getGiangVien, addGiangVien, updateGiangVien, deleteGiangVien, countSvByGv,
-    getDangKy, addDangKy, deleteDangKy, checkMsvExists,
+    getDangKy, addDangKy, deleteDangKy, deleteAllDangKy, checkMsvExists,
   };
 })();
